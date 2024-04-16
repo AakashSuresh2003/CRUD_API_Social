@@ -1,12 +1,13 @@
 const dotenv = require("dotenv")
 dotenv.config()
 const express = require("express");
-const posts = require("./mockData/data");
+const cookieParser = require("cookie-parser")
 const connectDb = require("./database/db");
 const authRouter = require("./routes/auth")
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
 app.use("/api/auth",authRouter)
 
 connectDb()
