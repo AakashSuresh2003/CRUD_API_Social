@@ -49,22 +49,25 @@ const refetchController = async (req, res) => {
   try {
     const token = req.cookies.token;
     jwt.verify(token, process.env.JWT_SECRET, {}, async (err, data) => {
-      console.log(data);
       if (err) {
-        res.status(404).json(err);
+        return res.status(404).json(err); 
       }
       try {
         const id = data._id;
         const user = await User.findOne({ _id: id });
+        if (!user) {
+          throw new Error("User is not logged in");
+        }
         res.status(200).json(user);
       } catch (err) {
-        res.status(500).json("User Not found");
+        res.status(500).json("User not found");
       }
     });
   } catch (err) {
     res.status(500).json(err);
   }
 };
+
 
 module.exports = {
   registerController,
