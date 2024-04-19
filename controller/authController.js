@@ -1,36 +1,38 @@
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const { CustomError } = require("../middlewares/error");
 
-const registerController = async (req, res) => {
+const registerController = async (req, res, next) => {
   try {
     const { password, username, email } = req.body;
     const existingUser = await User.findOne({ $or: [{ username }, { email }] });
-    if (existingUser) throw new Error("User name or e-mail already exists");
+    if (existingUser)
+      throw new CustomError("Username or email already exists", 400);
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hashSync(password, salt);
     const newUser = new User({ ...req.body, password: hashedPassword });
     const savedUser = await newUser.save();
     res.status(201).json(savedUser);
   } catch (err) {
-    res.status(500).json(err);
+    next(err);
   }
 };
 
-const loginController = async (req, res) => {
+const loginController = async (req, res, next) => {
   try {
     const { username, email, password } = req.body;
     const user = await User.findOne({ $or: [{ username }, { email }] });
-    if (!user) return res.status(404).json("User not found");
+    if (!user) throw new CustomError("Username not found", 404);
     const matched = await bcrypt.compareSync(password, user.password);
-    if (!matched) return res.status(401).json("UnAuthorised User");
+    if (!matched) throw new CustomError("UnAuthorised User", 401);
     const { password: _, ...data } = user._doc;
     const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_EXPIRE,
     });
     res.cookie("token", token).status(200).json(data);
   } catch (err) {
-    res.status(500).json(err);
+    next(err);
   }
 };
 
@@ -41,7 +43,7 @@ const logoutController = async (req, res) => {
       .status(200)
       .json("User logged out successfully");
   } catch (err) {
-    res.status(500).json(err);
+    next(err);
   }
 };
 
@@ -50,24 +52,22 @@ const refetchController = async (req, res) => {
     const token = req.cookies.token;
     jwt.verify(token, process.env.JWT_SECRET, {}, async (err, data) => {
       if (err) {
-        return res.status(404).json(err); 
+        console.log(err);
+        return res.status(404).json({ err: "JsonWebTokenError" });
       }
       try {
         const id = data._id;
         const user = await User.findOne({ _id: id });
-        if (!user) {
-          throw new Error("User is not logged in");
-        }
+        if (!user) throw new CustomError("User not logged in", 401);
         res.status(200).json(user);
       } catch (err) {
-        res.status(500).json("User not found");
+        next(err);
       }
     });
   } catch (err) {
-    res.status(500).json(err);
+    next(err);
   }
 };
-
 
 module.exports = {
   registerController,
